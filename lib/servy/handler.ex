@@ -1,4 +1,6 @@
 defmodule Servy.Handler do
+  require Logger
+
   def handle(request) do
     request
     |> parse
@@ -6,21 +8,28 @@ defmodule Servy.Handler do
     |> log
     |> route
     |> track
+    |> emojify
     |> format_response
   end
 
   def track(%{status: 404, path: path} = conv) do
-    IO.puts "Warning: 404 encountered for #{path}"
+    Logger.warning "404 encountered for #{path}"
     conv
   end
 
   def track(conv), do: conv
 
-  def rewrite_path(%{path: "/wildlife"} = conv) do
-    %{conv | path: "/wildthings"}
+  def rewrite_path(%{path: path} = conv) do
+    regex = ~r{\/(?<thing>\w+)\?id=(?<id>\d+)}
+    captures = Regex.named_captures(regex, path)
+    rewrite_path_captures(conv, captures)
   end
 
-  def rewrite_path(conv), do: conv
+  def rewrite_path_captures(conv, %{"thing" => thing, "id" => id}) do
+    %{ conv | path: "/#{thing}/#{id}" }
+  end
+
+  def rewrite_path_captures(conv, nil), do: conv
 
   def log(conv), do: IO.inspect(conv)
 
@@ -58,6 +67,12 @@ defmodule Servy.Handler do
     %{conv | status: 404, resp_body: "#{path} Not Found"}
   end
 
+  def emojify(%{status: 200, resp_body: body} = conv) do
+    %{conv | resp_body: "😀 " <> body <> " 😆"}
+  end
+
+  def emojify(conv), do: conv
+
   def format_response(conv) do
     """
     HTTP/1.1 #{conv.status} #{status_reason(conv.status)}
@@ -89,7 +104,6 @@ Accept: */*
 """
 
 response = Servy.Handler.handle(request)
-
 IO.puts(response)
 
 request_2 = """
@@ -101,7 +115,6 @@ Accept: */*
 """
 
 response_2 = Servy.Handler.handle(request_2)
-
 IO.puts(response_2)
 
 request_3 = """
@@ -113,7 +126,6 @@ Accept: */*
 """
 
 response_3 = Servy.Handler.handle(request_3)
-
 IO.puts(response_3)
 
 request_4 = """
@@ -125,7 +137,6 @@ Accept: */*
 """
 
 response_4 = Servy.Handler.handle(request_4)
-
 IO.puts(response_4)
 
 request_5 = """
@@ -137,7 +148,6 @@ Accept: */*
 """
 
 response_5 = Servy.Handler.handle(request_5)
-
 IO.puts(response_5)
 
 request_6 = """
@@ -149,5 +159,15 @@ Accept: */*
 """
 
 response_6 = Servy.Handler.handle(request_6)
-
 IO.puts(response_6)
+
+request_7 = """
+GET /bears?id=1 HTTP/1.1
+Host: example.com
+User-Agent: ExampleBrowser/1.0
+Accept: */*
+
+"""
+
+response_7 = Servy.Handler.handle(request_7)
+IO.puts(response_7)
