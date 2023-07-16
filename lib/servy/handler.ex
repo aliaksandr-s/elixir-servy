@@ -1,6 +1,13 @@
 defmodule Servy.Handler do
-  require Logger
+  @pages_path Path.expand("pages", File.cwd!)
 
+  import Servy.Plugins, only: [track: 1, rewrite_path: 1, log: 1]
+  import Servy.Parser, only: [parse: 1]
+  import Servy.FileHandler, only: [handle_file: 2]
+  alias Servy.Conv
+  @moduledoc "Handles HTTP requests"
+
+  @doc "Transforms an HTTP request into an HTTP response"
   def handle(request) do
     request
     |> parse
@@ -12,86 +19,66 @@ defmodule Servy.Handler do
     |> format_response
   end
 
-  def track(%{status: 404, path: path} = conv) do
-    Logger.warning "404 encountered for #{path}"
-    conv
+  def route(%Conv{method: "GET", path: "/about"} = conv) do
+      @pages_path
+      |> Path.join("about.html")
+      |> File.read
+      |> handle_file(conv)
   end
 
-  def track(conv), do: conv
+  # def route(%{ method: "GET", path: "/about"} = conv) do
+  #   case File.read("#{File.cwd!}/pages/about.html") do
+  #     {:ok, content}    -> %{conv | status: 200, resp_body: content}
+  #     {:error, :enoent} -> %{conv | status: 404, resp_body: "File not found"}
+  #     {:error, reason}  -> %{conv | status: 500, resp_body: "File error: #{reason}"}
+  #   end
+  # end
 
-  def rewrite_path(%{path: path} = conv) do
-    regex = ~r{\/(?<thing>\w+)\?id=(?<id>\d+)}
-    captures = Regex.named_captures(regex, path)
-    rewrite_path_captures(conv, captures)
-  end
-
-  def rewrite_path_captures(conv, %{"thing" => thing, "id" => id}) do
-    %{ conv | path: "/#{thing}/#{id}" }
-  end
-
-  def rewrite_path_captures(conv, nil), do: conv
-
-  def log(conv), do: IO.inspect(conv)
-
-  def parse(request) do
-    [method, path, _] =
-      request
-      |> String.split("\n")
-      |> List.first()
-      |> String.split(" ")
-
-    %{method: method, 
-      path: path, 
-      resp_body: "", 
-      status: nil,
-    }
-  end
-
-  def route(%{ method: "GET", path: "/wildthings"} = conv) do
+  def route(%Conv{ method: "GET", path: "/wildthings"} = conv) do
     %{conv | status: 200, resp_body: "Bears, Lions, Tigers"}
   end
 
-  def route(%{ method: "GET", path: "/bears"} = conv) do
+  def route(%Conv{ method: "GET", path: "/bears/new"} = conv) do
+    Path.expand("../../pages", __DIR__)
+    |> Path.join("form.html")
+    |> File.read
+    |> handle_file(conv)
+  end
+
+  def route(%Conv{ method: "GET", path: "/bears"} = conv) do
     %{conv | status: 200, resp_body: "Grizzly, Black, Polar"}
   end
 
-  def route(%{ method: "GET", path: "/bears/" <> id} = conv) do
+  def route(%Conv{ method: "GET", path: "/bears/" <> id} = conv) do
     %{conv | status: 200, resp_body: "Bear id: #{id}"}
   end
 
-  def route(%{ method: "DELETE", path: "/bears/" <> _id} = conv) do
+  def route(%Conv{method: "POST", path: "/bears"} = conv) do
+    %{ conv | status: 201, resp_body: "Create a bear!" }
+  end
+
+  def route(%Conv{ method: "DELETE", path: "/bears/" <> _id} = conv) do
     %{ conv | status: 403, resp_body: "Deleting a bear is forbidden!"}
   end
 
-  def route(%{ path: path} = conv) do
+  def route(%Conv{ path: path} = conv) do
     %{conv | status: 404, resp_body: "#{path} Not Found"}
   end
 
-  def emojify(%{status: 200, resp_body: body} = conv) do
+  def emojify(%Conv{status: 200, resp_body: body} = conv) do
     %{conv | resp_body: "😀 " <> body <> " 😆"}
   end
 
-  def emojify(conv), do: conv
+  def emojify(%Conv{} = conv), do: conv
 
-  def format_response(conv) do
+  def format_response(%Conv{} = conv) do
     """
-    HTTP/1.1 #{conv.status} #{status_reason(conv.status)}
+    HTTP/1.1 "#{Conv.full_status(conv)}"
     Content-Type: text/html
     Content-Length: #{byte_size(conv.resp_body)}
 
     #{conv.resp_body}
     """
-  end
-
-  defp status_reason(code) do
-    %{
-      200 => "OK",
-      201 => "Created",
-      401 => "Unauthorized",
-      403 => "Forbidden",
-      404 => "Not Found",
-      500 => "Internal Server Error",
-    }[code]
   end
 end
 
@@ -171,3 +158,40 @@ Accept: */*
 
 response_7 = Servy.Handler.handle(request_7)
 IO.puts(response_7)
+
+request_8 = """
+GET /about HTTP/1.1
+Host: example.com
+User-Agent: ExampleBrowser/1.0
+Accept: */*
+
+"""
+
+response_8 = Servy.Handler.handle(request_8)
+IO.puts(response_8)
+
+request_9 = """
+GET /bears/new HTTP/1.1
+Host: example.com
+User-Agent: ExampleBrowser/1.0
+Accept: */*
+
+"""
+
+response_9 = Servy.Handler.handle(request_9)
+IO.puts(response_9)
+
+request_10 = """
+POST /bears HTTP/1.1
+Host: example.com
+User-Agent: ExampleBrowser/1.0
+Accept: */*
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 21
+
+name=Baloo&type=Brown
+"""
+
+response_10 = Servy.Handler.handle(request_10)
+
+IO.puts response_10
