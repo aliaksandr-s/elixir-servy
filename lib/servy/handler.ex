@@ -1,11 +1,14 @@
 defmodule Servy.Handler do
+  @moduledoc "Handles HTTP requests"
+
   @pages_path Path.expand("pages", File.cwd!)
 
   import Servy.Plugins, only: [track: 1, rewrite_path: 1, log: 1]
   import Servy.Parser, only: [parse: 1]
   import Servy.FileHandler, only: [handle_file: 2]
+
   alias Servy.Conv
-  @moduledoc "Handles HTTP requests"
+  alias Servy.BearController
 
   @doc "Transforms an HTTP request into an HTTP response"
   def handle(request) do
@@ -26,14 +29,6 @@ defmodule Servy.Handler do
       |> handle_file(conv)
   end
 
-  # def route(%{ method: "GET", path: "/about"} = conv) do
-  #   case File.read("#{File.cwd!}/pages/about.html") do
-  #     {:ok, content}    -> %{conv | status: 200, resp_body: content}
-  #     {:error, :enoent} -> %{conv | status: 404, resp_body: "File not found"}
-  #     {:error, reason}  -> %{conv | status: 500, resp_body: "File error: #{reason}"}
-  #   end
-  # end
-
   def route(%Conv{ method: "GET", path: "/wildthings"} = conv) do
     %{conv | status: 200, resp_body: "Bears, Lions, Tigers"}
   end
@@ -46,19 +41,20 @@ defmodule Servy.Handler do
   end
 
   def route(%Conv{ method: "GET", path: "/bears"} = conv) do
-    %{conv | status: 200, resp_body: "Grizzly, Black, Polar"}
+    BearController.index(conv)
   end
 
   def route(%Conv{ method: "GET", path: "/bears/" <> id} = conv) do
-    %{conv | status: 200, resp_body: "Bear id: #{id}"}
+    params = Map.put(conv.params, "id", id)
+    BearController.show(conv, params)
   end
 
   def route(%Conv{method: "POST", path: "/bears"} = conv) do
-    %{ conv | status: 201, resp_body: "Create a bear!" }
+    BearController.create(conv, conv.params)
   end
 
   def route(%Conv{ method: "DELETE", path: "/bears/" <> _id} = conv) do
-    %{ conv | status: 403, resp_body: "Deleting a bear is forbidden!"}
+    BearController.delete(conv)
   end
 
   def route(%Conv{ path: path} = conv) do
