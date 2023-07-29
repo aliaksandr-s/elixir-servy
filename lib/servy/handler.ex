@@ -6,6 +6,7 @@ defmodule Servy.Handler do
   import Servy.Plugins, only: [track: 1, rewrite_path: 1, log: 1]
   import Servy.Parser, only: [parse: 1]
   import Servy.FileHandler, only: [handle_file: 2]
+  import Servy.View, only: [render: 3]
 
   alias Servy.Conv
   alias Servy.BearController
@@ -22,6 +23,20 @@ defmodule Servy.Handler do
     |> format_response
   end
 
+  def route(%Conv{method: "GET", path: "/404s"} = conv) do
+    counts = Servy.FourOhFourCounter.get_counts()
+
+    %{ conv | status: 200, resp_body: inspect counts }
+  end
+
+  def route(%Conv{method: "POST", path: "/pledges"} = conv) do
+    Servy.PledgeController.create(conv, conv.params)
+  end
+
+  def route(%Conv{method: "GET", path: "/pledges"} = conv) do
+    Servy.PledgeController.index(conv)
+  end
+
   def route(%Conv{ method: "GET", path: "/sensors" } = conv) do
     task = Task.async(fn -> Servy.Tracker.get_location("bigfoot") end)
 
@@ -32,7 +47,7 @@ defmodule Servy.Handler do
 
     where_is_bigfoot = Task.await(task)
 
-    %{ conv | status: 200, resp_body: inspect {where_is_bigfoot, snapshots} }
+    render(conv, "sensors.eex", snapshots: snapshots, location: where_is_bigfoot)
   end
 
   def route(%Conv{ method: "GET", path: "/kaboom" } = conv) do
