@@ -7,21 +7,23 @@ defmodule Servy.SensorServer do
   defmodule State do
     defstruct [
       sensor_data: %{},
-      refresh_interval: :timer.seconds(5)
+      refresh_interval: :timer.minutes(60) #:timer.seconds(5)
     ]
   end
 
   # Client Interface
-  def start do
-    GenServer.start(__MODULE__, %State{}, name: @name)
+  def start_link(interval) do
+    IO.puts "Starting the SensorServer with interval #{interval}..."
+    initial_state = %State{refresh_interval: interval}
+    GenServer.start_link(__MODULE__, initial_state, name: @name)
   end
 
   def get_sensor_data do
     GenServer.call @name, :get_sensor_data
   end
 
-  def set_refresh_interval(sec) do
-    GenServer.call @name, {:set_refresh_interval, sec}
+  def set_refresh_interval(interval) do
+    GenServer.call @name, {:set_refresh_interval, interval}
   end
 
   # Server Callbacks
@@ -53,8 +55,8 @@ defmodule Servy.SensorServer do
     {:reply, state.sensor_data, state}
   end
 
-  def handle_call({:set_refresh_interval, sec}, _from, state) do
-    new_state = %{state | refresh_interval: :timer.seconds(sec)}
+  def handle_call({:set_refresh_interval, interval}, _from, state) do
+    new_state = %{state | refresh_interval: interval}
     {:reply, :ok, new_state}
   end
 
